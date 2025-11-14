@@ -1,34 +1,54 @@
-from typing import List, Optional
+# app/vectorstore.py
 
-from langchain_core.documents import Document
+import os
+from typing import Optional, List
+
 from langchain_community.vectorstores import Chroma
+from langchain_openai import OpenAIEmbeddings
+from langchain.schema import Document
 
-from .embeddings import get_embedding_model
-from .config import settings
+from .config import Settings
+
+settings = Settings()
+
+_VECTORSTORE: Optional[Chroma] = None
 
 
-def build_vectorstore(
-    documents: List[Document],
-    persist_directory: Optional[str] = None,
-) -> Chroma:
-    """Create (or overwrite) a Chroma vector store from documents."""
-    persist_directory = persist_directory or settings.chroma_dir
-    embedding = get_embedding_model()
-
-    vectorstore = Chroma.from_documents(
-        documents=documents,
-        embedding=embedding,
-        persist_directory=persist_directory,
+def _load_embeddings() -> OpenAIEmbeddings:
+    return OpenAIEmbeddings(
+        model=settings.embedding_model,
+        openai_api_key=settings.openai_api_key,
     )
-    return vectorstore
 
 
-def load_vectorstore(persist_directory: Optional[str] = None) -> Chroma:
-    """Load an existing Chroma store (must exist on disk)."""
-    persist_directory = persist_directory or settings.chroma_dir
-    embedding = get_embedding_model()
-    vectorstore = Chroma(
-        embedding_function=embedding,
-        persist_directory=persist_directory,
+def get_vectorstore() -> Chroma:
+    """
+    Returns a singleton Chroma vectorstore.
+    Creates or loads it from disk.
+    """
+    global _VECTORSTORE
+
+    if _VECTORSTORE is not None:
+        return _VECTORSTORE
+
+    persist_dir = os.path.join(settings.data_dir, "chroma")
+    os.makedirs(persist_dir, exist_ok=True)
+
+    embeddings = _load_embeddings()
+
+    _VECTORSTORE = Chroma(
+        collection_name="rag_docs",
+        embedding_function=embeddings,
+        persist_directory=persist_dir,
     )
-    return vectorstore
+
+    return _VECTORSTORE
+
+
+def add_documents(docs: List[Document]) -> None:
+    """
+    Add new documents to the vectorstore and persist it.
+    """
+    vs = get_vectorstore()
+    vs.add_documents(docs)
+    vs.persist()

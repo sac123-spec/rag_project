@@ -1,45 +1,98 @@
-import glob
+# app/ingestion.py
+
 import os
-from typing import List, Tuple, Optional
+import glob
+from typing import List, Optional
 
-from langchain_core.documents import Document
 from langchain_community.document_loaders import PyPDFLoader
+from langchain.schema import Document  # LangChain v0.2 compatible
 
-from .config import settings
-from .chunking import split_documents
-from .vectorstore import build_vectorstore
+from .config import Settings
+from .rag.chunking import semantic_adaptive_chunk
+from .vectorstore import add_documents
+
+settings = Settings()
 
 
-def load_pdfs_from_directory(directory: str) -> List[Document]:
-    pdf_paths = glob.glob(os.path.join(directory, "*.pdf"))
-    docs: List[Document] = []
+def load_pdfs(raw_dir: Optional[str] = None) -> List[str]:
+    """
+    Load all PDFs from the raw_dir and return a list of page-level texts.
+    Each element in the returned list is the text of one PDF page.
+    """
+    raw_dir = raw_dir or settings.raw_dir
+
+    pdf_paths = glob.glob(os.path.join(raw_dir, "*.pdf"))
+    if not pdf_paths:
+        raise RuntimeError(
+            "No PDFs found in {}. Drop PDFs there and run again.".format(raw_dir)
+        )
+
+    page_texts: List[str] = []
+
     for path in pdf_paths:
         loader = PyPDFLoader(path)
-        pdf_docs = loader.load()
-        for d in pdf_docs:
-            d.metadata["source"] = os.path.basename(path)
-        docs.extend(pdf_docs)
+        pages = loader.load()
+        for page in pages:
+            if page.page_content:
+                page_texts.append(page.page_content)
+
+    return page_texts
+
+
+def chunk_pages_to_documents(page_texts: List[str]) -> List[Document]:
+    """
+    Take raw PDF page texts, run them through the semantic chunker,
+    and wrap resulting chunks into LangChain Document objects,
+    with simple metadata for traceability.
+    """
+    docs: List[Document] = []
+
+    for page_index, text in enumerate(page_texts):
+        # Get chunks for this page
+        chunks = semantic_adaptive_chunk(text)
+
+        for chunk_index, chunk in enumerate(chunks):
+            metadata = {
+                "page_index": page_index,
+                "chunk_index": chunk_index,
+            }
+            docs.append(Document(page_content=chunk, metadata=metadata))
+
     return docs
 
 
-def ingest_pdfs(raw_dir: Optional[str] = None) -> Tuple[int, int]:
+def ingest_pdfs(raw_dir: Optional[str] = None):
+    """
+    Main ingestion pipeline:
+    1. Load raw PDFs into page texts
+    2. Chunk pages into semantic chunks
+    3. Turn chunks into Document objects
+    4. Push Documents into the vectorstore
+
+    Returns:
+      (num_pdfs, num_chunks)
+    """
     raw_dir = raw_dir or settings.raw_dir
 
-    os.makedirs(raw_dir, exist_ok=True)
-    os.makedirs(settings.chroma_dir, exist_ok=True)
+    # Count PDFs
+    pdf_paths = glob.glob(os.path.join(raw_dir, "*.pdf"))
+    num_pdfs = len(pdf_paths)
 
-    docs = load_pdfs_from_directory(raw_dir)
-    if not docs:
+    if num_pdfs == 0:
         raise RuntimeError(
-            f"No PDFs found in {raw_dir}. Drop PDFs there and run again."
+            "No PDFs found in {}. Drop PDFs there and run again.".format(raw_dir)
         )
 
-    chunks = split_documents(docs)
-    build_vectorstore(chunks, persist_directory=settings.chroma_dir)
+    # 1) Load pages
+    page_texts = load_pdfs(raw_dir)
 
-    return len(docs), len(chunks)
+    # 2) Chunk pages and build Documents
+    docs = chunk_pages_to_documents(page_texts)
 
+    # 3) Store in vectorstore
+    if docs:
+        add_documents(docs)
 
-if __name__ == "__main__":
-    n_docs, n_chunks = ingest_pdfs()
-    print(f"Ingested {n_docs} original docs into {n_chunks} chunks.")
+    num_chunks = len(docs)
+
+    return num_pdfs, num_chunks

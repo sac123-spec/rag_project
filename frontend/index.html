@@ -7,7 +7,7 @@
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Custom config for Tailwind to get nicer fonts -->
+  <!-- Tailwind custom config -->
   <script>
     tailwind.config = {
       theme: {
@@ -27,6 +27,68 @@
     }
   </script>
 
+  <!-- Lottie player for animated logo (optional, light-weight) -->
+  <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+
+  <!-- Custom animations & glow effects -->
+  <style>
+    @keyframes fadeSlideIn {
+      0% {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .animate-fade-slide-in {
+      animation: fadeSlideIn 0.35s ease-out;
+    }
+
+    .glow-hover-card {
+      transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    .glow-hover-card:hover {
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.4),
+                  0 14px 45px rgba(15, 23, 42, 0.9);
+      border-color: rgba(56, 189, 248, 0.7);
+      transform: translateY(-1px);
+    }
+
+    @keyframes systemPulse {
+      0% {
+        transform: translateX(-20%);
+      }
+      100% {
+        transform: translateX(120%);
+      }
+    }
+
+    .system-pulse-bar::before {
+      content: "";
+      position: absolute;
+      inset-y: 0;
+      left: -20%;
+      width: 40%;
+      background: linear-gradient(
+        90deg,
+        rgba(56, 189, 248, 0) 0%,
+        rgba(56, 189, 248, 0.6) 40%,
+        rgba(59, 130, 246, 0.6) 60%,
+        rgba(56, 189, 248, 0) 100%
+      );
+      animation: systemPulse 2.5s linear infinite;
+    }
+
+    /* Simple dropdown shadow */
+    .dropdown-shadow {
+      box-shadow: 0 18px 60px rgba(15, 23, 42, 0.85);
+    }
+  </style>
+
   <!-- App JS -->
   <script defer src="/static/app.js"></script>
 </head>
@@ -37,8 +99,16 @@
     <!-- Sidebar -->
     <aside class="w-64 border-r border-slate-800/70 bg-slate-950/70 backdrop-blur-xl flex flex-col">
       <div class="px-6 py-6 border-b border-slate-800/70 flex items-center space-x-3">
-        <div class="h-9 w-9 rounded-2xl bg-gradient-to-br from-brand-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-brand-500/40">
-          <span class="text-lg font-bold">R</span>
+        <!-- Animated logo -->
+        <div class="h-9 w-9 rounded-2xl bg-slate-900/80 border border-brand-600/40 flex items-center justify-center shadow-lg shadow-brand-500/40 overflow-hidden">
+          <lottie-player
+            src="https://assets2.lottiefiles.com/packages/lf20_jcikwtux.json"
+            background="transparent"
+            speed="1"
+            style="width: 32px; height: 32px;"
+            loop
+            autoplay>
+          </lottie-player>
         </div>
         <div>
           <div class="text-sm font-semibold tracking-tight">RAG Control Console</div>
@@ -84,29 +154,90 @@
     <main class="flex-1 flex flex-col">
 
       <!-- Top stats bar -->
-      <section class="border-b border-slate-800/60 bg-slate-950/60 backdrop-blur-xl px-8 py-4">
+      <section class="relative border-b border-slate-800/60 bg-slate-950/60 backdrop-blur-xl px-8 py-4 overflow-hidden">
+        <!-- system pulse -->
+        <div class="system-pulse-bar pointer-events-none absolute inset-x-16 top-0 h-px opacity-70"></div>
+
         <div class="flex items-center justify-between mb-3">
-          <div class="text-xs uppercase tracking-[0.16em] text-slate-500">
-            Overview
+          <div>
+            <div class="text-xs uppercase tracking-[0.16em] text-slate-500">
+              Overview
+            </div>
+            <div class="mt-1 text-[11px] text-slate-500">
+              Monitor queries, ingestion, and document state.
+            </div>
           </div>
-          <div class="flex items-center space-x-3 text-[11px] text-slate-400">
-            <span class="px-2 py-0.5 rounded-full bg-slate-900/80 border border-slate-700/80">
-              Model: <span class="font-semibold text-slate-100">RAG Pipeline</span>
-            </span>
+
+          <!-- Profile & model controls -->
+          <div class="flex items-center space-x-4 text-[11px] text-slate-400">
+            <div class="hidden sm:flex items-center space-x-2 px-2 py-0.5 rounded-full bg-slate-900/80 border border-slate-700/80">
+              <span class="text-slate-500">Model</span>
+              <select id="model-select"
+                      class="bg-transparent text-slate-100 text-[11px] focus:outline-none">
+                <option value="rag-default">RAG Pipeline</option>
+                <option value="rag-fast">RAG (Fast)</option>
+                <option value="rag-precise">RAG (Precise)</option>
+              </select>
+            </div>
+
+            <!-- Profile dropdown -->
+            <div class="relative">
+              <button id="btn-profile"
+                      class="flex items-center space-x-2 px-2 py-1 rounded-full bg-slate-900/90 border border-slate-700/80 hover:border-brand-500/60 hover:bg-slate-900 transition">
+                <div class="h-7 w-7 rounded-full bg-gradient-to-br from-brand-500 to-indigo-500 flex items-center justify-center text-[11px] font-bold text-slate-950">
+                  SC
+                </div>
+                <div class="hidden sm:block text-left">
+                  <div class="text-[11px] font-semibold text-slate-100">Steven Coyle</div>
+                  <div class="text-[10px] text-slate-500">Admin</div>
+                </div>
+                <span class="text-[10px] text-slate-500 hidden sm:inline">▾</span>
+              </button>
+
+              <div id="profile-menu"
+                   class="hidden absolute right-0 mt-2 w-56 rounded-2xl bg-slate-950/95 border border-slate-800 dropdown-shadow backdrop-blur-xl text-xs text-slate-200 z-30">
+                <div class="px-3 py-3 border-b border-slate-800">
+                  <div class="font-semibold text-[11px]">Signed in as</div>
+                  <div class="text-[11px] text-slate-300 truncate">steven.coyle@personifyhealth.com</div>
+                </div>
+                <div class="py-2">
+                  <button id="toggle-theme"
+                          class="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-900 text-[11px]">
+                    <span>Theme</span>
+                    <span class="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-[10px]">Dark</span>
+                  </button>
+                  <button class="w-full flex items-center justify-between px-3 py-2 hover:bg-slate-900 text-[11px]">
+                    <span>Current model</span>
+                    <span id="profile-model-label" class="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-[10px]">
+                      RAG Pipeline
+                    </span>
+                  </button>
+                </div>
+                <div class="py-2 border-t border-slate-800">
+                  <div class="px-3 py-1 text-[10px] uppercase tracking-wide text-slate-500">
+                    About
+                  </div>
+                  <div class="px-3 py-1 text-[11px] text-slate-400">
+                    Version <span class="text-slate-200 font-semibold">0.1.0</span> · Local Dev
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
+        <!-- Stats cards -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="relative overflow-hidden bg-slate-900/70 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-4 shadow-lg shadow-slate-900/60">
-            <div class="absolute inset-x-0 -top-10 h-20 bg-gradient-to-b from-brand-500/20 to-transparent pointer-events-none"></div>
+          <div class="relative overflow-hidden bg-slate-900/70 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-4 shadow-lg shadow-slate-900/60 glow-hover-card">
+            <div class="absolute inset-x-0 -top-10 h-20 bg-gradient-to-b from-brand-500/15 to-transparent pointer-events-none"></div>
             <div class="relative">
               <div class="text-[11px] uppercase tracking-wide text-slate-400 mb-1">Total Queries</div>
               <div id="stat-total-queries" class="text-2xl font-semibold">0</div>
             </div>
           </div>
 
-          <div class="relative overflow-hidden bg-slate-900/70 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-4 shadow-lg shadow-slate-900/60">
-            <div class="absolute inset-x-0 -top-10 h-20 bg-gradient-to-b from-emerald-500/20 to-transparent pointer-events-none"></div>
+          <div class="relative overflow-hidden bg-slate-900/70 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-4 shadow-lg shadow-slate-900/60 glow-hover-card">
+            <div class="absolute inset-x-0 -top-10 h-20 bg-gradient-to-b from-emerald-500/15 to-transparent pointer-events-none"></div>
             <div class="relative">
               <div class="text-[11px] uppercase tracking-wide text-slate-400 mb-1">Last Latency</div>
               <div class="flex items-baseline space-x-1">
@@ -116,8 +247,8 @@
             </div>
           </div>
 
-          <div class="relative overflow-hidden bg-slate-900/70 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-4 shadow-lg shadow-slate-900/60">
-            <div class="absolute inset-x-0 -top-10 h-20 bg-gradient-to-b from-rose-500/20 to-transparent pointer-events-none"></div>
+          <div class="relative overflow-hidden bg-slate-900/70 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-4 shadow-lg shadow-slate-900/60 glow-hover-card">
+            <div class="absolute inset-x-0 -top-10 h-20 bg-gradient-to-b from-rose-500/15 to-transparent pointer-events-none"></div>
             <div class="relative">
               <div class="text-[11px] uppercase tracking-wide text-slate-400 mb-1">Last Status</div>
               <div id="stat-last-status" class="text-2xl font-semibold text-slate-300">–</div>
@@ -133,12 +264,13 @@
         <div class="lg:col-span-2 flex flex-col space-y-6">
 
           <!-- Search Panel -->
-          <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-950/70 backdrop-blur-xl">
+          <div id="panel-search"
+               class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-950/70 backdrop-blur-xl glow-hover-card">
             <div class="flex items-center justify-between mb-3">
               <div>
                 <h2 class="text-sm font-semibold text-slate-100">Ask a question</h2>
                 <p class="text-[11px] text-slate-400 mt-0.5">
-                  The system will retrieve relevant chunks and synthesize an answer.
+                  The system retrieves relevant chunks and synthesizes an answer.
                 </p>
               </div>
               <div class="flex items-center space-x-3 text-[11px] text-slate-400">
@@ -170,7 +302,8 @@
           </div>
 
           <!-- Answer Panel -->
-          <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-950/70 backdrop-blur-xl">
+          <div id="panel-answer"
+               class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-950/70 backdrop-blur-xl glow-hover-card">
             <div class="flex items-center justify-between mb-3">
               <h2 class="text-sm font-semibold text-slate-100">Answer</h2>
               <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-slate-400">
@@ -183,7 +316,8 @@
           </div>
 
           <!-- Sources Panel -->
-          <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-950/70 backdrop-blur-xl">
+          <div id="panel-sources"
+               class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-950/70 backdrop-blur-xl glow-hover-card">
             <div class="flex items-center justify-between mb-3">
               <h2 class="text-sm font-semibold text-slate-100">Sources</h2>
               <span class="text-[10px] text-slate-500">Top retrieved chunks</span>
@@ -198,7 +332,8 @@
         <div class="flex flex-col space-y-6">
 
           <!-- Upload Panel -->
-          <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-950/70 backdrop-blur-xl">
+          <div id="panel-upload"
+               class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-950/70 backdrop-blur-xl glow-hover-card">
             <h2 class="text-sm font-semibold mb-2 text-slate-100">Upload PDFs</h2>
             <p class="text-[11px] text-slate-400 mb-3">
               Drag and drop PDF files here or click to select them. They will be stored in <code class="bg-slate-900 px-1 py-0.5 rounded border border-slate-700">data/raw/</code>.
@@ -222,7 +357,8 @@
           </div>
 
           <!-- Ingest Panel -->
-          <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-950/70 backdrop-blur-xl">
+          <div id="panel-ingest"
+               class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-950/70 backdrop-blur-xl glow-hover-card">
             <h2 class="text-sm font-semibold mb-2 text-slate-100">Ingest & Index</h2>
             <p class="text-[11px] text-slate-400 mb-3">
               Embed all PDFs in <code class="bg-slate-900 px-1 py-0.5 rounded border border-slate-700">data/raw/</code> and write them into the vector store.
@@ -236,7 +372,8 @@
           </div>
 
           <!-- Admin Panel -->
-          <div class="bg-slate-900/80 border border-amber-500/60 rounded-2xl p-6 shadow-xl shadow-amber-500/30 backdrop-blur-xl">
+          <div id="panel-admin"
+               class="bg-slate-900/80 border border-amber-500/60 rounded-2xl p-6 shadow-xl shadow-amber-500/30 backdrop-blur-xl glow-hover-card">
             <div class="flex items-center justify-between mb-2">
               <h2 class="text-sm font-semibold text-amber-100">Admin Panel</h2>
               <button id="btn-admin-refresh"
@@ -268,7 +405,8 @@
           </div>
 
           <!-- Logs Panel -->
-          <div class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-950/70 backdrop-blur-xl flex-1 flex flex-col">
+          <div id="panel-logs"
+               class="bg-slate-900/70 border border-slate-800/80 rounded-2xl p-6 shadow-xl shadow-slate-950/70 backdrop-blur-xl flex-1 flex flex-col glow-hover-card">
             <div class="flex items-center justify-between mb-2">
               <h2 class="text-sm font-semibold text-slate-100">Activity Log</h2>
               <span class="text-[10px] text-slate-500">Last 200 events</span>
