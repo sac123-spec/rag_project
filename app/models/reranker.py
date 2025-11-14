@@ -1,70 +1,99 @@
-from __future__ import annotations
+# app/rag/reranker.py
 
-from dataclasses import dataclass
-from typing import List, Tuple
-import numpy as np
+"""
+Runtime neural reranker for your RAG system.
+
+Features:
+- Loads your fine-tuned model from app/models/reranker_model/
+- Falls back to pre-trained lightweight model if fine-tuned version does not exist
+- Provides a clean cross_encoder_rerank() function used in retrieval
+"""
+
+import os
 import torch
-from torch import nn
+from typing import List, Tuple
 
-from langchain_core.documents import Document
-
-
-def build_reranker_net(embedding_dim: int) -> nn.Module:
-    input_dim = embedding_dim * 3
-    return nn.Sequential(
-        nn.Linear(input_dim, 256),
-        nn.ReLU(),
-        nn.Linear(256, 1),
-    )
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from langchain.schema import Document
 
 
-def _make_features(q: np.ndarray, d: np.ndarray) -> np.ndarray:
-    return np.concatenate([q, d, q * d], axis=-1)
+# ------------------------------------------------------------
+# Model paths
+# ------------------------------------------------------------
+
+# Fine-tuned model directory
+FINE_TUNED_MODEL_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "models", "reranker_model"
+)
+
+# Fallback model
+FALLBACK_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-2-v2"
 
 
-@dataclass
-class Reranker:
-    embedding_model: any
-    model: nn.Module
-    device: str = "cpu"
+# ------------------------------------------------------------
+# Load reranker model
+# ------------------------------------------------------------
 
-    @classmethod
-    def from_pretrained(cls, embedding_model, model_path: str, device: str = "cpu"):
-        sample_vec = embedding_model.embed_query("hello")
-        emb_dim = len(sample_vec)
+def load_reranker():
+    """
+    Loads the fine-tuned reranker if available.
+    Otherwise loads a default pre-trained model.
+    """
 
-        model = build_reranker_net(emb_dim)
-        state = torch.load(model_path, map_location=device)
-        model.load_state_dict(state)
-        model.to(device)
-        model.eval()
+    if os.path.exists(FINE_TUNED_MODEL_DIR):
+        print("🔹 Loading fine-tuned reranker model...")
+        tokenizer = AutoTokenizer.from_pretrained(FINE_TUNED_MODEL_DIR)
+        model = AutoModelForSequenceClassification.from_pretrained(FINE_TUNED_MODEL_DIR)
+    else:
+        print("⚠️ Fine-tuned reranker not found. Using fallback model:", FALLBACK_MODEL_NAME)
+        tokenizer = AutoTokenizer.from_pretrained(FALLBACK_MODEL_NAME)
+        model = AutoModelForSequenceClassification.from_pretrained(FALLBACK_MODEL_NAME)
 
-        return cls(embedding_model=embedding_model, model=model, device=device)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    model.eval()
 
-    def score_docs(self, query: str, docs: List[Document]) -> List[Tuple[Document, float]]:
-        q_emb = np.array(self.embedding_model.embed_query(query))
-        doc_texts = [d.page_content for d in docs]
-        doc_embs = np.array(self.embedding_model.embed_documents(doc_texts))
+    return tokenizer, model, device
 
-        features = np.stack(
-            [_make_features(q_emb, doc_embs[i]) for i in range(len(docs))],
-            axis=0
-        )
+
+# Load once on module import
+TOKENIZER, MODEL, DEVICE = load_reranker()
+
+
+# ------------------------------------------------------------
+# Reranking function
+# ------------------------------------------------------------
+
+def cross_encoder_rerank(query: str, docs: List[Document], top_k: int = 5) -> List[Tuple[Document, float]]:
+    """
+    Reranks retrieved documents using the cross-encoder model.
+    Returns: list of (document, score) sorted descending.
+    """
+
+    if not docs:
+        return []
+
+    scored_docs = []
+
+    for doc in docs:
+        text = doc.page_content
+
+        inputs = TOKENIZER(
+            query,
+            text,
+            truncation=True,
+            padding="max_length",
+            max_length=128,
+            return_tensors="pt",
+        ).to(DEVICE)
 
         with torch.no_grad():
-            x = torch.tensor(features, dtype=torch.float32, device=self.device)
-            scores = self.model(x).squeeze(-1).cpu().numpy().tolist()
+            logits = MODEL(**inputs).logits
+            score = float(logits.squeeze().cpu().item())
 
-        return list(zip(docs, scores))
+        scored_docs.append((doc, score))
 
-    def rerank(
-        self,
-        query: str,
-        docs: List[Document],
-        top_k: Optional[int] = None
-    ) -> List[Document]:
+    # Sort by score descending
+    scored_docs.sort(key=lambda x: x[1], reverse=True)
 
-        top_k = top_k or len(docs)
-        scored = self.score_docs(query, docs)
-        scored.sort(key=lambda x: x[1], reverse=True)
-        return [d for d, _ in scored[:top_k]]
+    return scored_docs[:top_k]
