@@ -1,0 +1,28 @@
+# --- FastAPI / Server ---
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
+pydantic==1.10.14
+python-multipart==0.0.9
+pypdf==4.1.0
+
+# --- ChromaDB + Embeddings ---
+chromadb==0.5.0
+sentence-transformers==2.5.1
+openai==1.14.2
+
+# --- BM25 Sparse Retrieval ---
+rank-bm25==0.2.2
+
+# --- HuggingFace Transformers + Training ---
+transformers==4.39.3
+torch==2.2.1
+accelerate==0.28.0
+datasets==2.18.0
+
+# --- Utilities ---
+numpy==1.26.4
+orjson==3.10.7
+requests==2.31.0
+
+# --- Optional (but recommended) ---
+tqdm==4.66.2   # progress bars for training
